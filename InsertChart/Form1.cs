@@ -53,6 +53,7 @@ namespace InsertChart
                         SetTableComb(doc.Tables[i]);
                         pgb.Value = (int)(i * 100.0 / doc.Tables.Count);
                     }
+                    Release();
                     MessageBox.Show("Finished!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
@@ -125,7 +126,7 @@ namespace InsertChart
             series1.ApplyDataLabels(Microsoft.Office.Interop.Word.XlDataLabelsType.xlDataLabelsShowValue);
             DataLabels dlb1 = (DataLabels)series1.DataLabels();
             series1.Format.Fill.ForeColor.RGB = (int)XlRgbColor.xlGreen;
-            dlb1.Font.Color = ColorTranslator.ToOle(Color.White);
+            dlb1.Font.Color = ColorTranslator.ToOle(Color.FromArgb(255, 0, 255));
             dlb1.Position = Microsoft.Office.Interop.Word.XlDataLabelPosition.xlLabelPositionCenter;
 
             Series series2 = (Series)chart.SeriesCollection(2);
