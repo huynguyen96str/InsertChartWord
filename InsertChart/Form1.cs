@@ -50,15 +50,27 @@ namespace InsertChart
                 {
                     for (int i = 1; i < doc.Tables.Count; i++)
                     {
-                        SetTableComb(doc.Tables[i]);
+                        if (!(doc.Tables[i].Columns.Count >= 4)) continue;
+                        if (!(doc.Tables[i].Rows.Count > 1)) continue;
+                        int rowstartIndex = 2;
+                        int rowsEndIndex = doc.Tables[i].Rows.Count - 1;
+                        int count = rowsEndIndex - rowstartIndex + 1;
+                        if (count <= 4 && count >= 1)
+                        {
+                            SetTable(doc.Tables[i], true);
+                        }
+                        else if (count > 4)
+                        {
+                            SetTable(doc.Tables[i], false);
+                        }
                         pgb.Value = (int)(i * 100.0 / doc.Tables.Count);
                     }
-                    Release();
+                    Release(false);
                     MessageBox.Show("Finished!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
-                    Release();
+                    Release(true);
                     MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 btnBrowser.Enabled = true;
@@ -66,7 +78,7 @@ namespace InsertChart
             pgb.Visible = false;
             await System.Threading.Tasks.Task.Delay(1);
         }
-        private void Release()
+        private void Release(bool isEx)
         {
             //var pathfilename = @"C:\Users\PC\Desktop\Export\thuyetminh.pdf";
             //Object filename2 = (Object)pathfilename;
@@ -76,11 +88,84 @@ namespace InsertChart
             //    ref oMissing, ref oMissing, ref oMissing, ref oMissing);
 
             // close word doc and word app.
-            object saveChanges = WdSaveOptions.wdSaveChanges;
+            object saveChanges = isEx ? WdSaveOptions.wdDoNotSaveChanges : WdSaveOptions.wdSaveChanges;
             ((_Document)doc).Close(ref saveChanges, ref oMissing, ref oMissing);
             ((_Application)wordApplication).Quit(ref oMissing, ref oMissing, ref oMissing);
             wordApplication = null;
             doc = null;
+        }
+        private void SetTable(Table tb, bool isPile)
+        {
+            int rowstartIndex = 2;
+            int rowsEndIndex = tb.Rows.Count - 1;
+            // create Excel application object
+            Range range = doc.Range(tb.Range.End, tb.Range.End);
+            //Chart chart = doc.InlineShapes.AddChart(XlChartType.xlCombo, range).Chart;
+            Chart chart = doc.InlineShapes.AddChart2(-1, isPile? XlChartType.xlPie: XlChartType.xlColumnClustered, range, Type.Missing).Chart;
+            string title = tb.Cell(1, tb.Columns.Count - 2).Range.Text.Trim().Replace("\r", "").Replace("\a", "");
+            chart.ChartTitle.Text = title;
+            chart.HasTitle = title.Length > 0;
+            int count = rowsEndIndex - rowstartIndex + 1;
+            double[] seri1 = new double[count];
+            double[] seri2 = new double[count];
+            string[] lb = new string[count];
+            int index = 0;
+            string tt = "";
+            for (int r = rowstartIndex; r <= rowsEndIndex; r++)
+            {
+                string v1 = tb.Cell(r, tb.Columns.Count - 1).Range.Text.Trim().Replace(",", ".").Replace("\r", "").Replace("\a", "");
+                string v2 = tb.Cell(r, tb.Columns.Count).Range.Text.Trim().Replace(",", ".").Replace("\r", "").Replace("\a", "");
+                seri1[index] = Convert.ToDouble(v1);
+                seri2[index] = Convert.ToDouble(v2);
+                tt = tb.Cell(r, tb.Columns.Count - 2).Range.Text.Trim().Replace("\r", "").Replace("\a", "");
+                if (tt.Length > 60) tt = tt.Substring(0, 30) + "...";
+                lb[index] = tt;
+                index++;
+            }
+            if (lb.Count() <= 4)
+            {
+                ChartGroup cg1 = (ChartGroup)chart.ChartGroups(1);
+                cg1.GapWidth = 500;
+            }
+            if (isPile)
+            {
+                Series series1 = (Series)chart.SeriesCollection(1);
+                series1.Name = tb.Cell(1, tb.Columns.Count).Range.Text;
+                series1.Values = seri2; 
+                series1.AxisGroup = XlAxisGroup.xlSecondary;
+                series1.ApplyDataLabels(Microsoft.Office.Interop.Word.XlDataLabelsType.xlDataLabelsShowValue);
+                DataLabels dlb2 = (DataLabels)series1.DataLabels();
+                //series1.Format.Fill.ForeColor.RGB = (int)XlRgbColor.xlOrange;
+                //dlb2.Font.Color = ColorTranslator.ToOle(Color.Orange);
+                dlb2.NumberFormat = "General\\%";
+                dlb2.Position = Microsoft.Office.Interop.Word.XlDataLabelPosition.xlLabelPositionCenter;
+                chart.SeriesCollection(1).XValues = lb;
+                chart.ChartData.Workbook.close();
+            }
+            else
+            {
+                Series series1 = (Series)chart.SeriesCollection(1);
+                series1.Name = tb.Cell(1, tb.Columns.Count).Range.Text;
+                series1.Values = seri2; 
+                series1.ApplyDataLabels(Microsoft.Office.Interop.Word.XlDataLabelsType.xlDataLabelsShowValue);
+                chart.SeriesCollection(1).XValues = lb;
+                DataLabels dlb2 = (DataLabels)series1.DataLabels();
+                //series1.Format.Fill.ForeColor.RGB = (int)XlRgbColor.xlOrange;
+                //dlb2.Font.Color = ColorTranslator.ToOle(Color.Orange);
+                dlb2.NumberFormat = "General\\%";
+
+                Series series3 = ((Series)chart.SeriesCollection(3));
+                series3.Delete();
+                Series series2 = ((Series)chart.SeriesCollection(2));
+                series2.Delete();
+                chart.HasLegend = false;
+
+                Axis yAxis1 = (Axis)chart.Axes(XlAxisType.xlValue, XlAxisGroup.xlPrimary);
+                yAxis1.HasTitle = true;
+                yAxis1.AxisTitle.Text = tb.Cell(1, tb.Columns.Count).Range.Text;
+                chart.ChartData.Workbook.close();
+            }
+     
         }
         private void SetTableComb(Table tb)
         {
@@ -138,7 +223,7 @@ namespace InsertChart
             DataLabels dlb2 = (DataLabels)series2.DataLabels();
             series2.Format.Fill.ForeColor.RGB = (int)XlRgbColor.xlOrange;
             dlb2.Font.Color = ColorTranslator.ToOle(Color.Orange);
-            dlb2.NumberFormat =  "General\\%"; ;
+            dlb2.NumberFormat = "General\\%"; ;
             dlb2.Position = Microsoft.Office.Interop.Word.XlDataLabelPosition.xlLabelPositionAbove;
             Series series3 = ((Series)chart.SeriesCollection(3));
             series3.Delete();
